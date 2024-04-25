@@ -59,7 +59,7 @@ function intersectRaySphere(origin, direction, sphere) {
 
 // P=O+t(V−O) min<t<max
 function traceRay(origin, direction, minT, maxT) {
-	let closestT = Number.Infinity;
+	let closestT = Number.POSITIVE_INFINITY;
 	let closestSphere = null;
 	for (let i = 0; i < spheres.length; i++) {
 		const ts = intersectRaySphere(origin, direction, spheres[i]);
@@ -96,7 +96,7 @@ function init() {
 	for (let x = -canvas.width / 2; x < canvas.width / 2; x++) {
 		for (let y = -canvas.height / 2; y < canvas.height / 2; y++) {
 			const direction = canvasToViewport(x, y);
-			const color = traceRay(cameraPosition, direction, 1, Number.Infinity);
+			const color = traceRay(cameraPosition, direction, 1, Number.POSITIVE_INFINITY);
 			putPixel(x, y, color);
 		}
 	}
