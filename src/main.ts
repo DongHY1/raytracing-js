@@ -13,7 +13,6 @@ function init() {
         1,
         Number.POSITIVE_INFINITY
       );
-      // 如果color是白色，那么说明该点x和y不在球上。
       canvasRenderer.putPixel(x, y, color);
     }
   }
