@@ -13,7 +13,18 @@ export function subtract(v1: Vector, v2: Vector): Vector {
 export function dotProduct(v1: Vector, v2: Vector): number {
   return v1.x * v2.x + v1.y * v2.y + v1.z * v2.z;
 }
-
+// see: https://gabrielgambetta.com/computer-graphics-from-scratch/01-common-concepts.html
+export function translateToCenterCoordinates(
+  width: number,
+  height: number,
+  x: number,
+  y: number
+) {
+  return {
+    x1: width / 2 + x,
+    y1: height / 2 - y,
+  };
+}
 // a = <D,D>,b = 2<CO,D>,c = <CO,CO> - r^2,a*t^2+b*t+c=0 求解 t 二元一次方程求解
 export function intersectRaySphere(
   origin: Vector,

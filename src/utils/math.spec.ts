@@ -4,6 +4,7 @@ import {
   subtract,
   intersectRaySphere,
   canvasToViewport,
+  translateToCenterCoordinates,
 } from "./math";
 import { VIEWPORT, type Vector, type Sphere } from "../types";
 
@@ -29,6 +30,30 @@ describe("Vector operations", () => {
     expect(dotProduct(origin, direction)).toBe(6);
   });
 
+  it("should correctly translate coordinates to the center of a given dimension", () => {
+    const width = 100;
+    const height = 100;
+
+    expect(translateToCenterCoordinates(width, height, 0, 0)).toEqual({
+      x1: 50,
+      y1: 50,
+    });
+
+    expect(translateToCenterCoordinates(width, height, 25, 25)).toEqual({
+      x1: 75,
+      y1: 25,
+    });
+
+    expect(translateToCenterCoordinates(width, height, -25, -25)).toEqual({
+      x1: 25,
+      y1: 75,
+    });
+
+    expect(translateToCenterCoordinates(width, height, 50, 50)).toEqual({
+      x1: 100,
+      y1: 0,
+    });
+  });
   describe("Ray-Sphere Intersection", () => {
     it("should find intersections with a sphere correctly", () => {
       direction = { x: 0, y: 0, z: 1 }; // 特定测试调整方向
