@@ -1,18 +1,20 @@
 import {
   DEFAULT_COLOR,
   VIEWPORT,
-  spheres,
+  SPHERES,
   type Sphere,
   type Vector,
+  DIFFUSE_REFLECTION_LIGHTS,
 } from "../types";
+import {
+  addition,
+  computeNormal,
+  crossProduct,
+  dotProduct,
+  magnitude,
+  subtract,
+} from "./vector";
 
-export function subtract(v1: Vector, v2: Vector): Vector {
-  return { x: v1.x - v2.x, y: v1.y - v2.y, z: v1.z - v2.z };
-}
-
-export function dotProduct(v1: Vector, v2: Vector): number {
-  return v1.x * v2.x + v1.y * v2.y + v1.z * v2.z;
-}
 // see: https://gabrielgambetta.com/computer-graphics-from-scratch/01-common-concepts.html
 export function translateToCenterCoordinates(
   width: number,
@@ -63,7 +65,7 @@ export function traceRay(
 ) {
   let closestT = Number.POSITIVE_INFINITY;
   let closestSphere: Sphere | null = null;
-  for (const sphere of spheres) {
+  for (const sphere of SPHERES) {
     const ts = intersectRaySphere(origin, direction, sphere);
     // 找符合t>1距离最近的点
     for (const t of ts) {
@@ -73,5 +75,38 @@ export function traceRay(
       }
     }
   }
-  return closestSphere ? closestSphere.color : DEFAULT_COLOR;
+  if (closestSphere) {
+    //  D 相当于 V-O
+    // const P = O + closest_t * (V-O)  // Compute intersection
+    const P = addition(origin, crossProduct(direction, closestT));
+    const N = computeNormal(P, closestSphere?.center);
+    const index = computeLighting(N, P);
+    return closestSphere.color.map((item) => item * index) as Sphere["color"];
+  } else {
+    return DEFAULT_COLOR;
+  }
+}
+
+export function computeLighting(N: Vector, P: Vector) {
+  let i = 0;
+  let L: Vector;
+  let NL: number;
+  for (const diffuseLight of DIFFUSE_REFLECTION_LIGHTS) {
+    switch (diffuseLight.type) {
+      case "ambient":
+        i += diffuseLight.intensity;
+        continue;
+      case "point":
+        L = subtract(diffuseLight.position, P);
+        break;
+      case "directional":
+        L = diffuseLight.position;
+        break;
+    }
+    NL = dotProduct(N, L);
+    if (NL > 0) {
+      i += (diffuseLight.intensity * NL) / (magnitude(N) * magnitude(L));
+    }
+  }
+  return i;
 }
