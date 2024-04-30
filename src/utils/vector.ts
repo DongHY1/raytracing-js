@@ -35,8 +35,3 @@ export function computeNormal(
 	// Normalize this vector to get the unit normal vector
 	return normalize(fromCenterToPoint);
 }
-
-// 角度转换为弧度
-export function degreesToRadians(degrees: number) {
-	return (degrees * Math.PI) / 180;
-}
