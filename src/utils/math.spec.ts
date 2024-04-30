@@ -18,6 +18,7 @@ describe("Vector operations", () => {
       center: { x: 10, y: 10, z: 10 },
       radius: 2,
       color: [255, 255, 0],
+      specular: 500
     };
   });
   it("should correctly translate coordinates to the center of a given dimension", () => {
@@ -51,6 +52,7 @@ describe("Vector operations", () => {
       center: { x: 1, y: 2, z: 7 },
       radius: 2,
       color: [255, 255, 0],
+      specular: 500
     }; // 特定测试调整球体
     const result = intersectRaySphere(origin, direction, sphere);
     expect(result).toEqual([6, 2]);
@@ -61,6 +63,7 @@ describe("Vector operations", () => {
       center: { x: 10, y: 10, z: 10 },
       radius: 2,
       color: [255, 255, 0],
+      specular: 500
     }; // 球心在不同的位置
     const result = intersectRaySphere(origin, direction, sphere);
     expect(result[0]).toBeNaN();
