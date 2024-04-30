@@ -67,3 +67,4 @@ export function traceRay(
 
 	return closestSphere ? closestSphere.color : DEFAULT_COLOR;
 }
+
