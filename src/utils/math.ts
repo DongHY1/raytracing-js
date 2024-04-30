@@ -7,6 +7,7 @@ import {
 	DIFFUSE_REFLECTION_LIGHTS,
 	MAX_DISTANCE,
 	CAMERA_POSITION,
+	MIN_DISTANCE,
 } from "../types";
 import {
 	addition,
@@ -19,37 +20,37 @@ import {
 
 // see: https://gabrielgambetta.com/computer-graphics-from-scratch/01-common-concepts.html
 export function translateToCenterCoordinates(
-	width: number,
-	height: number,
+	canvasWidth: number,
+	canvasHeight: number,
 	x: number,
 	y: number,
 ) {
 	return {
-		x1: width / 2 + x,
-		y1: height / 2 - y,
+		x1: canvasWidth / 2 + x,
+		y1: canvasHeight / 2 - y,
 	};
 }
 // a = <D,D>,b = 2<CO,D>,c = <CO,CO> - r^2,a*t^2+b*t+c=0 求解 t 二元一次方程求解
 export function intersectRaySphere(
-	origin: Vector,
-	direction: Vector,
-	sphere: Sphere,
+	rayOrigin: Vector, // 射线原点
+	rayDirection: Vector, // 射线方向
+	sphere: Sphere, // 球体对象
 ): [number, number] {
-	const oc: Vector = subtract(origin, sphere.center);
-	const a: number = dotProduct(direction, direction); // a = <D,D>
-	const b: number = 2 * dotProduct(oc, direction); // b = 2<CO,D>
-	const c: number = dotProduct(oc, oc) - sphere.radius ** 2; // c = <CO,CO> - r^2
-	const discriminant: number = b * b - 4 * a * c; // b^2 - 4*a*c
-	const t1: number = (-b + Math.sqrt(discriminant)) / (2 * a);
+	const oc: Vector = subtract(rayOrigin, sphere.center); // 射线原点到球心的向量
+	const a: number = dotProduct(rayDirection, rayDirection); // D向量的点积
+	const b: number = 2 * dotProduct(oc, rayDirection); // 2倍的<OC, D>点积
+	const c: number = dotProduct(oc, oc) - sphere.radius ** 2; // OC向量的点积减去半径的平方
+	const discriminant: number = b * b - 4 * a * c; // 判别式
+	const t1: number = (-b + Math.sqrt(discriminant)) / (2 * a); // 一元二次方程的根
 	const t2: number = (-b - Math.sqrt(discriminant)) / (2 * a);
 	return [t1, t2];
 }
 
-// 2D canvas coordinates to 3D viewport coordinates.
+// 将2D画布坐标转换为3D视口坐标
 export function canvasToViewport(
-	x: number,
-	y: number,
-	canvas: HTMLCanvasElement,
+	x: number, // 画布上的x坐标
+	y: number, // 画布上的y坐标
+	canvas: HTMLCanvasElement, // HTML画布元素
 ): Vector {
 	return {
 		x: (x * VIEWPORT.WIDTH) / canvas.width,
@@ -59,69 +60,108 @@ export function canvasToViewport(
 }
 
 // P=O+t(V−O) min<t<max
+// 追踪射线，寻找最近的交点并计算颜色
 export function traceRay(
-	origin: Vector,
-	direction: Vector,
-	minT: number,
-	maxT: number,
+	rayOrigin: Vector, // 射线的起点
+	rayDirection: Vector, // 射线的方向
 ) {
-	let closestT = MAX_DISTANCE;
-	let closestSphere: Sphere | null = null;
+	let closestIntersectionDistance = MAX_DISTANCE;
+	let closestIntersectedSphere: Sphere | null = null;
 	for (const sphere of SPHERES) {
-		const ts = intersectRaySphere(origin, direction, sphere);
-		// 找符合t>1距离最近的点
-		for (const t of ts) {
-			if (t < closestT && t > minT && t < maxT) {
-				closestT = t;
-				closestSphere = sphere;
+		const intersectionDistances = intersectRaySphere(
+			rayOrigin,
+			rayDirection,
+			sphere,
+		);
+		for (const distance of intersectionDistances) {
+			if (
+				distance < closestIntersectionDistance &&
+				distance > MIN_DISTANCE &&
+				distance < MAX_DISTANCE
+			) {
+				closestIntersectionDistance = distance;
+				closestIntersectedSphere = sphere;
 			}
 		}
 	}
-	if (closestSphere) {
-		// O + closest_t * (V-O) // Compute intersection
-		const P = addition(
-			origin,
-			crossProduct(subtract(direction, origin), closestT),
+	if (closestIntersectedSphere) {
+		const intersectionPoint = addition(
+			rayOrigin,
+			crossProduct(
+				subtract(rayDirection, rayOrigin),
+				closestIntersectionDistance,
+			),
 		);
-		const N = computeNormal(P, closestSphere?.center);
-		const V = subtract(crossProduct(direction, -1), CAMERA_POSITION); // why use crossProduct(direction, -1) ? see Figure 3-15
-		const index = computeLighting(N, P, V, closestSphere.specular);
-		return closestSphere.color.map((item) => item * index) as Sphere["color"];
+		const normalAtIntersection = computeNormal(
+			intersectionPoint,
+			closestIntersectedSphere.center,
+		); // 计算交点处的法线
+		const viewDirection = subtract(
+			crossProduct(rayDirection, -1),
+			CAMERA_POSITION,
+		); // 计算视线方向
+		const lightingIntensity = computeLighting(
+			normalAtIntersection,
+			intersectionPoint,
+			viewDirection,
+			closestIntersectedSphere.specular,
+		); // 计算光照强度
+		return closestIntersectedSphere.color.map(
+			(colorComponent) => colorComponent * lightingIntensity,
+		) as Sphere["color"];
 	}
 	return DEFAULT_COLOR;
 }
 
-export function computeLighting(N: Vector, P: Vector, V: Vector, S: number) {
-	let i = 0;
-	let L: Vector;
-	let NL: number;
-	let R: Vector;
-	let RV: number;
-	for (const diffuseLight of DIFFUSE_REFLECTION_LIGHTS) {
-		switch (diffuseLight.type) {
+// 根据光照模型计算光照强度
+export function computeLighting(
+	normalVector: Vector, // 交点处的法线向量
+	intersectionPoint: Vector, // 射线与物体的交点
+	viewDirection: Vector, // 从相机到交点的视线方向
+	specularExponent: number, // 镜面高光系数
+) {
+	let totalIntensity = 0; // 初始化总光照强度
+	let lightDirection: Vector; // 光源方向向量
+	let normalDotLight: number; // 法线与光源方向的点积结果
+	let reflectionVector: Vector; // 反射向量
+	let reflectionDotView: number; // 反射向量与视线方向的点积结果
+
+	for (const light of DIFFUSE_REFLECTION_LIGHTS) {
+		switch (light.type) {
 			case "ambient":
-				i += diffuseLight.intensity;
+				totalIntensity += light.intensity;
 				continue;
 			case "point":
-				L = subtract(diffuseLight.position, P);
+				lightDirection = subtract(light.position, intersectionPoint);
 				break;
 			case "directional":
-				L = diffuseLight.position;
+				lightDirection = light.position;
 				break;
 		}
-		// diffuse
-		NL = dotProduct(N, L);
-		if (NL > 0) {
-			i += (diffuseLight.intensity * NL) / (magnitude(N) * magnitude(L));
+		// 漫反射部分
+		normalDotLight = dotProduct(normalVector, lightDirection);
+		if (normalDotLight > 0) {
+			totalIntensity +=
+				(light.intensity * normalDotLight) /
+				(magnitude(normalVector) * magnitude(lightDirection));
 		}
-		//specular
-		if (S > 0) {
-			R = subtract(crossProduct(N, 2 * NL), L);
-			RV = dotProduct(R, V);
-			if (RV > 0) {
-				i += diffuseLight.intensity * (RV / (magnitude(R) * magnitude(V))) ** S;
+		// 镜面反射部分
+		if (specularExponent > 0) {
+			reflectionVector = subtract(
+				crossProduct(normalVector, 2 * normalDotLight),
+				lightDirection,
+			);
+			reflectionDotView = dotProduct(reflectionVector, viewDirection);
+			if (reflectionDotView > 0) {
+				totalIntensity +=
+					light.intensity *
+					(
+						reflectionDotView /
+							(magnitude(reflectionVector) * magnitude(viewDirection))) ** 
+						specularExponent
+					;
 			}
 		}
 	}
-	return i;
+	return totalIntensity;
 }
