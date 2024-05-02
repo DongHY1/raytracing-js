@@ -59,13 +59,13 @@ export function canvasToViewport(
 	};
 }
 
-// P=O+t(V−O) min<t<max
-// 追踪射线，寻找最近的交点并计算颜色
-export function traceRay(
-	rayOrigin: Vector, // 射线的起点
-	rayDirection: Vector, // 射线的方向
+function closestIntersection(
+	rayOrigin: Vector,
+	rayDirection: Vector,
+	tMin: number,
+	tMax: number,
 ) {
-	let closestIntersectionDistance = MAX_DISTANCE;
+	let closestIntersectionDistance = tMax;
 	let closestIntersectedSphere: Sphere | null = null;
 	for (const sphere of SPHERES) {
 		const intersectionDistances = intersectRaySphere(
@@ -76,14 +76,24 @@ export function traceRay(
 		for (const distance of intersectionDistances) {
 			if (
 				distance < closestIntersectionDistance &&
-				distance > MIN_DISTANCE &&
-				distance < MAX_DISTANCE
+				distance > tMin &&
+				distance < tMax
 			) {
 				closestIntersectionDistance = distance;
 				closestIntersectedSphere = sphere;
 			}
 		}
 	}
+	return { closestIntersectionDistance, closestIntersectedSphere };
+}
+// P=O+t(V−O) min<t<max
+// 追踪射线，寻找最近的交点并计算颜色
+export function traceRay(
+	rayOrigin: Vector, // 射线的起点
+	rayDirection: Vector, // 射线的方向
+) {
+	const { closestIntersectionDistance, closestIntersectedSphere } =
+		closestIntersection(rayOrigin, rayDirection, MIN_DISTANCE, MAX_DISTANCE);
 	if (closestIntersectedSphere) {
 		const intersectionPoint = addition(
 			rayOrigin,
@@ -125,41 +135,45 @@ export function computeLighting(
 	let normalDotLight: number; // 法线与光源方向的点积结果
 	let reflectionVector: Vector; // 反射向量
 	let reflectionDotView: number; // 反射向量与视线方向的点积结果
-
+	let tMax: number;
 	for (const light of DIFFUSE_REFLECTION_LIGHTS) {
-		switch (light.type) {
-			case "ambient":
-				totalIntensity += light.intensity;
-				continue;
-			case "point":
+		const type = light.type;
+		if (type === "ambient") {
+			totalIntensity += light.intensity;
+		} else {
+			if (type === "point") {
 				lightDirection = subtract(light.position, intersectionPoint);
-				break;
-			case "directional":
+				tMax = 1;
+			} else {
 				lightDirection = light.position;
-				break;
-		}
-		// 漫反射部分
-		normalDotLight = dotProduct(normalVector, lightDirection);
-		if (normalDotLight > 0) {
-			totalIntensity +=
-				(light.intensity * normalDotLight) /
-				(magnitude(normalVector) * magnitude(lightDirection));
-		}
-		// 镜面反射部分
-		if (specularExponent > 0) {
-			reflectionVector = subtract(
-				crossProduct(normalVector, 2 * normalDotLight),
-				lightDirection,
-			);
-			reflectionDotView = dotProduct(reflectionVector, viewDirection);
-			if (reflectionDotView > 0) {
-				totalIntensity +=
-					light.intensity *
-					(
-						reflectionDotView /
-							(magnitude(reflectionVector) * magnitude(viewDirection))) ** 
-						specularExponent
-					;
+				tMax = MAX_DISTANCE;
+			}
+			// 阴影部分
+			const { closestIntersectedSphere: closestIntersectedShadowSphere } =
+				closestIntersection(intersectionPoint, lightDirection, 0.01, tMax);
+			if (!closestIntersectedShadowSphere) {
+				// 漫反射部分
+				normalDotLight = dotProduct(normalVector, lightDirection);
+				if (normalDotLight > 0) {
+					totalIntensity +=
+						(light.intensity * normalDotLight) /
+						(magnitude(normalVector) * magnitude(lightDirection));
+				}
+				// 镜面反射部分
+				if (specularExponent > 0) {
+					reflectionVector = subtract(
+						crossProduct(normalVector, 2 * normalDotLight),
+						lightDirection,
+					);
+					reflectionDotView = dotProduct(reflectionVector, viewDirection);
+					if (reflectionDotView > 0) {
+						totalIntensity +=
+							light.intensity *
+							(reflectionDotView /
+								(magnitude(reflectionVector) * magnitude(viewDirection))) **
+								specularExponent;
+					}
+				}
 			}
 		}
 	}
