@@ -12,10 +12,13 @@ import {
 import {
 	addition,
 	computeNormal,
-	crossProduct,
+	multiply,
 	dotProduct,
 	magnitude,
+	reflectRay,
 	subtract,
+	additionArray,
+	multiplyArray,
 } from "./vector";
 
 // see: https://gabrielgambetta.com/computer-graphics-from-scratch/01-common-concepts.html
@@ -91,34 +94,50 @@ function closestIntersection(
 export function traceRay(
 	rayOrigin: Vector, // 射线的起点
 	rayDirection: Vector, // 射线的方向
-) {
+	tMin: number,
+	tMax: number,
+	recursionDepth: number, // 反射递归深度
+): Sphere["color"] {
 	const { closestIntersectionDistance, closestIntersectedSphere } =
-		closestIntersection(rayOrigin, rayDirection, MIN_DISTANCE, MAX_DISTANCE);
+		closestIntersection(rayOrigin, rayDirection, tMin, tMax);
 	if (closestIntersectedSphere) {
 		const intersectionPoint = addition(
 			rayOrigin,
-			crossProduct(
-				subtract(rayDirection, rayOrigin),
-				closestIntersectionDistance,
-			),
+			multiply(subtract(rayDirection, rayOrigin), closestIntersectionDistance),
 		);
 		const normalAtIntersection = computeNormal(
 			intersectionPoint,
 			closestIntersectedSphere.center,
 		); // 计算交点处的法线
-		const viewDirection = subtract(
-			crossProduct(rayDirection, -1),
-			CAMERA_POSITION,
-		); // 计算视线方向
+		const viewDirection = subtract(multiply(rayDirection, -1), CAMERA_POSITION); // 计算视线方向
 		const lightingIntensity = computeLighting(
 			normalAtIntersection,
 			intersectionPoint,
 			viewDirection,
 			closestIntersectedSphere.specular,
 		); // 计算光照强度
-		return closestIntersectedSphere.color.map(
-			(colorComponent) => colorComponent * lightingIntensity,
-		) as Sphere["color"];
+		const localColor = multiplyArray(
+			closestIntersectedSphere.color,
+			lightingIntensity,
+		);
+
+		// 计算反射光
+		const reflective = closestIntersectedSphere.reflective;
+		if (reflective <= 0 || recursionDepth <= 0) {
+			return localColor;
+		}
+		// 从交点出发向光源处作射线
+		const reflectColor = traceRay(
+			intersectionPoint,
+			reflectRay(viewDirection, normalAtIntersection),
+			0.001,
+			MAX_DISTANCE,
+			recursionDepth - 1,
+		);
+		return additionArray(
+			multiplyArray(localColor, 1 - reflective),
+			multiplyArray(reflectColor, reflective),
+		);
 	}
 	return DEFAULT_COLOR;
 }
@@ -150,7 +169,7 @@ export function computeLighting(
 			}
 			// 阴影部分
 			const { closestIntersectedSphere: closestIntersectedShadowSphere } =
-				closestIntersection(intersectionPoint, lightDirection, 0.01, tMax);
+				closestIntersection(intersectionPoint, lightDirection, 0.001, tMax);
 			if (!closestIntersectedShadowSphere) {
 				// 漫反射部分
 				normalDotLight = dotProduct(normalVector, lightDirection);
@@ -162,7 +181,7 @@ export function computeLighting(
 				// 镜面反射部分
 				if (specularExponent > 0) {
 					reflectionVector = subtract(
-						crossProduct(normalVector, 2 * normalDotLight),
+						multiply(normalVector, 2 * normalDotLight),
 						lightDirection,
 					);
 					reflectionDotView = dotProduct(reflectionVector, viewDirection);

@@ -9,6 +9,7 @@ export interface Sphere {
 	radius: number;
 	color: [number, number, number];
 	specular: number; //反光，作为 (cosa)^x 的系数 x
+	reflective: number;
 }
 
 export type DiffuseReflectionLightType =
