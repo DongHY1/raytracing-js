@@ -7,7 +7,6 @@ import {
 	DIFFUSE_REFLECTION_LIGHTS,
 	MAX_DISTANCE,
 	CAMERA_POSITION,
-	MIN_DISTANCE,
 } from "../types";
 import {
 	addition,
